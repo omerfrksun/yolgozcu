@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YolGözcü — Fen İşleri Karar Destek Paneli</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+<style>
+  html,body{height:100%;margin:0;padding:0;overflow:hidden;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
+  #map{height:100vh;width:100vw}
+
+  /* Lejant kenar bosluklari - topbar ve kenarlara carpismasin */
+  .leaflet-bottom.leaflet-right{ bottom:16px !important; right:16px !important; }
+  .leaflet-bottom.leaflet-left{  bottom:16px !important; left:24px !important; }
+  .leaflet-control-zoom{ top:60px !important; }
+
+  .topbar{position:absolute;top:0;left:0;right:0;z-index:1000;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:10px 20px;background:rgba(255,255,255,.96);
+    border-bottom:1px solid rgba(0,0,0,.08);box-shadow:0 2px 12px rgba(0,0,0,.1)}
+  .app-title{font-size:16px;font-weight:700;color:#1a1a2e}
+  .app-title span{color:#27ae60}
+  .live-badge{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;
+    padding:5px 14px;border-radius:99px;background:rgba(52,199,89,.1);
+    border:1px solid rgba(52,199,89,.3);color:#27ae60}
+  .live-dot{width:8px;height:8px;border-radius:50%;background:#27ae60;animation:pulse 1.5s infinite}
+  @keyframes pulse{0%{transform:scale(.95);box-shadow:0 0 0 0 rgba(52,199,89,.7)}
+    70%{transform:scale(1);box-shadow:0 0 0 8px rgba(52,199,89,0)}
+    100%{transform:scale(.95);box-shadow:0 0 0 0 rgba(52,199,89,0)}}
+  .live-badge.waiting{color:#999;border-color:rgba(0,0,0,.1);background:transparent}
+  .live-badge.waiting .live-dot{background:#ccc;animation:none}
+
+  /* Boş durum mesajı */
+  .empty-state{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+    z-index:999;text-align:center;pointer-events:none;transition:opacity .5s}
+  .empty-state.hidden{opacity:0}
+  .empty-icon{font-size:48px;margin-bottom:12px;opacity:.4}
+  .empty-title{font-size:16px;font-weight:600;color:#555;margin-bottom:6px}
+  .empty-sub{font-size:13px;color:#999}
+
+  /* Mali rapor paneli */
+  .report-panel{position:absolute;bottom:24px;left:24px;z-index:1000;
+    width:295px;background:rgba(255,255,255,.98);border-radius:14px;
+    box-shadow:0 6px 28px rgba(0,0,0,.14);padding:16px;
+    border:1px solid rgba(0,0,0,.07);color:#2c3e50;transition:all .3s}
+  .panel-title{font-size:13px;font-weight:700;margin:0 0 12px;
+    border-bottom:2px solid #f0f0f0;padding-bottom:8px;letter-spacing:.4px}
+  .rrow{display:flex;justify-content:space-between;margin-bottom:8px;font-size:13px;font-weight:500}
+  .small{color:#95a5a6;font-size:12px;padding-left:8px}
+  .rdiv{height:1px;background:#f0f0f0;margin:10px 0}
+  .rtotal span{font-size:10px;color:#bdc3c7;text-transform:uppercase;font-weight:700;letter-spacing:.5px}
+  .rtotal div{font-size:22px;font-weight:800;color:#27ae60;margin-top:2px}
+
+  /* Yeni pin animasyonu */
+  @keyframes pinPop{0%{transform:scale(2.5);opacity:.3}100%{transform:scale(1);opacity:1}}
+</style>
+</head>
+<body>
+
+<!-- Üst bar -->
+<div class="topbar">
+  <div class="app-title">Yol<span>Gözcü</span> — Fen İşleri Karar Destek</div>
+  <div class="live-badge waiting" id="liveBadge">
+    <div class="live-dot"></div>
+    <span id="liveTxt">Tespit Bekleniyor...</span>
+  </div>
+</div>
+
+<!-- Boş durum -->
+<div class="empty-state" id="emptyState">
+  <div class="empty-icon">🗺️</div>
+  <div class="empty-title">Henüz tespit yok</div>
+  <div class="empty-sub">Sürücü ekranından tespiti başlatın<br>Hasar pinleri burada canlı görünecek</div>
+</div>
+
+<!-- Mali rapor -->
+<div class="report-panel">
+  <div class="panel-title" style="display:flex;align-items:center;justify-content:space-between;">
+    <span>📊 Fen İşleri Mali Raporu</span>
+    <button onclick="resetAll()" id="resetBtn" style="font-size:10px;padding:3px 10px;border-radius:6px;border:1px solid #e74c3c;background:transparent;color:#e74c3c;cursor:pointer;font-weight:600;transition:all .2s" onmouseover="this.style.background='#e74c3c';this.style.color='#fff'" onmouseout="this.style.background='transparent';this.style.color='#e74c3c'">↺ Sıfırla</button>
+  </div>
+  <div class="rrow"><span>Toplam Tespit:</span><strong id="rTot">0</strong></div>
+  <div class="rrow"><span>Kritik Hasar:</span><strong id="rKrt" style="color:#ff3b30">0</strong></div>
+  <div class="rdiv"></div>
+  <div class="rrow small"><span>• Malzeme:</span><span id="rMat">0 ₺</span></div>
+  <div class="rrow small"><span>• İşçilik:</span><span id="rLab">0 ₺</span></div>
+  <div class="rrow small"><span>• Lojistik:</span><span id="rLog">0 ₺</span></div>
+  <div class="rdiv"></div>
+  <div class="rtotal"><span>Öngörülen Toplam Bütçe</span><div id="rBudget">0 ₺</div></div>
+</div>
+
+<div id="map" style="padding-top:56px"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script>
+const API        = 'http://127.0.0.1:8000';
+const REFRESH_MS = 3000;  // 3 saniyede bir kontrol
+
+const map = L.map('map').setView([41.0082,28.9784],11);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+  maxZoom:19, attribution:'© OpenStreetMap'
+}).addTo(map);
+
+const layer = L.layerGroup().addTo(map);
+
+function getColor(sev){
+  const s=(sev||'').toLowerCase();
+  if(s.includes('kritik')||s.includes('critical')) return '#ff3b30';
+  if(s.includes('orta')||s.includes('medium'))     return '#ffcc00';
+  return '#34c759';
+}
+
+// Bilinen ID'ler — sadece yeni pinleri ekle
+let knownIds = new Set();
+let totalPins = 0;
+
+async function fetchLive(){
+  try{
+    const res = await fetch(API+'/api/defects?t='+Date.now());
+    if(!res.ok) throw new Error();
+    const geo = await res.json();
+
+    const newFeatures = geo.features.filter(f => !knownIds.has(f.id));
+
+    newFeatures.forEach(feature => {
+      const p   = feature.properties || {};
+      const col = getColor(p.severity);
+      const latlng = L.latLng(
+        feature.geometry.coordinates[1],
+        feature.geometry.coordinates[0]
+      );
+
+      // Yeni pin: büyük başla, küçül
+      const marker = L.circleMarker(latlng,{
+        radius:16, fillColor:col, color:'#fff',
+        weight:3, opacity:1, fillOpacity:.9
+      }).addTo(layer);
+
+      // 1 saniyede normal boyuta küçül
+      setTimeout(()=>marker.setStyle({radius:10,weight:2}),900);
+
+      // Popup
+      const w  = p.width_cm  !=null?p.width_cm +' cm':'—';
+      const d  = p.depth_cm  !=null?p.depth_cm +' cm':'—';
+      const tc = (p.total_cost||0).toLocaleString('tr-TR');
+      const mc = (p.material_cost||0).toLocaleString('tr-TR');
+      const lc = (p.labor_cost||0).toLocaleString('tr-TR');
+      const gc = (p.logistic_cost||0).toLocaleString('tr-TR');
+      const dt = p.damage_type?p.damage_type.toUpperCase():'HASAR';
+
+      marker.bindPopup(
+        '<div style="font-family:Arial,sans-serif;font-size:13px;min-width:220px;color:#2c3e50;line-height:1.5">'+
+          '<div style="font-size:14px;font-weight:700;color:'+col+';border-bottom:2px solid '+col+';padding-bottom:5px;margin-bottom:8px">'+
+            dt+' — '+(p.severity||'Hafif')+
+          '</div>'+
+          '<div style="margin-bottom:5px">📍 '+(p.address||'İstanbul')+'</div>'+
+          '<div style="margin-bottom:8px;color:#888;font-size:12px">📏 Genişlik: '+w+' | Derinlik: '+d+'</div>'+
+          '<div style="background:#f8f8f8;border-radius:6px;padding:7px 10px;font-size:12px;margin-bottom:6px">'+
+            '<div style="display:flex;justify-content:space-between"><span>Malzeme:</span><b>'+mc+' ₺</b></div>'+
+            '<div style="display:flex;justify-content:space-between"><span>İşçilik:</span><b>'+lc+' ₺</b></div>'+
+            '<div style="display:flex;justify-content:space-between"><span>Lojistik:</span><b>'+gc+' ₺</b></div>'+
+          '</div>'+
+          '<div style="display:flex;justify-content:space-between;font-size:15px;font-weight:800;border-top:2px solid #eee;padding-top:7px">'+
+            '<span>Toplam:</span><span style="color:#27ae60">'+tc+' ₺</span>'+
+          '</div>'+
+        '</div>'
+      );
+
+      knownIds.add(feature.id);
+      totalPins++;
+    });
+
+    // Boş durum
+    if(totalPins>0){
+      document.getElementById('emptyState').classList.add('hidden');
+      const badge=document.getElementById('liveBadge');
+      badge.className='live-badge';
+      document.getElementById('liveTxt').textContent='Canlı — '+totalPins+' Tespit';
+    }
+
+  }catch(e){
+    // Backend yoksa bekle
+  }
+}
+
+async function fetchReport(){
+  try{
+    const res=await fetch(API+'/api/report?t='+Date.now());
+    if(!res.ok) throw new Error();
+    const d=await res.json();
+    document.getElementById('rTot').textContent  = d.total_defects||0;
+    document.getElementById('rKrt').textContent  = d.critical_count||0;
+    document.getElementById('rMat').textContent  = (d.total_material_cost||0).toLocaleString('tr-TR')+' ₺';
+    document.getElementById('rLab').textContent  = (d.total_labor_cost||0).toLocaleString('tr-TR')+' ₺';
+    document.getElementById('rLog').textContent  = (d.total_logistic_cost||0).toLocaleString('tr-TR')+' ₺';
+    document.getElementById('rBudget').textContent=(d.total_projected_cost||0).toLocaleString('tr-TR')+' ₺';
+  }catch(e){}
+}
+
+// Sıfırlama
+async function resetAll(){
+  if(!confirm('Tüm hasar kayıtları silinecek. Emin misiniz?')) return;
+  try{
+    const btn = document.getElementById('resetBtn');
+    btn.textContent = '⏳ Siliniyor...';
+    btn.style.pointerEvents = 'none';
+
+    await fetch(API+'/api/detections',{method:'DELETE'});
+
+    // Haritayı temizle
+    layer.clearLayers();
+    knownIds = new Set();
+    totalPins = 0;
+
+    // Paneli sıfırla
+    ['rTot','rKrt'].forEach(id=>document.getElementById(id).textContent='0');
+    ['rMat','rLab','rLog'].forEach(id=>document.getElementById(id).textContent='0 ₺');
+    document.getElementById('rBudget').textContent='0 ₺';
+
+    // Badge sıfırla
+    const badge=document.getElementById('liveBadge');
+    badge.className='live-badge waiting';
+    document.getElementById('liveTxt').textContent='Tespit Bekleniyor...';
+
+    // Boş durum mesajını göster
+    document.getElementById('emptyState').classList.remove('hidden');
+
+    btn.textContent = '✓ Temizlendi';
+    setTimeout(()=>{
+      btn.textContent='↺ Sıfırla';
+      btn.style.pointerEvents='auto';
+    }, 2000);
+  }catch(e){
+    alert('Sunucu bağlantısı yok.');
+  }
+}
+
+// Lejant
+const leg=L.control({position:'bottomright'});
+leg.onAdd=function(){
+  const d=L.DomUtil.create('div');
+  d.innerHTML='<div style="background:white;padding:10px 12px;border-radius:10px;box-shadow:0 2px 12px rgba(0,0,0,.15);font-size:13px;border:1px solid rgba(0,0,0,.06)">'+
+    '<b style="display:block;margin-bottom:6px;font-size:12px;color:#555;text-transform:uppercase;letter-spacing:.4px">Hasar Şiddeti</b>'+
+    '<div style="display:flex;align-items:center;gap:7px;margin-bottom:4px"><span style="background:#ff3b30;width:12px;height:12px;border-radius:50%;display:inline-block"></span>Kritik</div>'+
+    '<div style="display:flex;align-items:center;gap:7px;margin-bottom:4px"><span style="background:#ffcc00;width:12px;height:12px;border-radius:50%;display:inline-block"></span>Orta</div>'+
+    '<div style="display:flex;align-items:center;gap:7px"><span style="background:#34c759;width:12px;height:12px;border-radius:50%;display:inline-block"></span>Hafif</div>'+
+  '</div>';
+  return d;
+};
+leg.addTo(map);
+
+// Başlat
+fetchLive();
+fetchReport();
+setInterval(()=>{ fetchLive(); fetchReport(); }, REFRESH_MS);
+</script>
+</body>
+</html>

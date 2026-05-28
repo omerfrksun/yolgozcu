@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>YolGözcü — Sürücü Ekranı</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#0a0a0a;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;height:100vh;overflow:hidden;display:flex;flex-direction:column}
+  .topbar{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:rgba(0,0,0,.92);border-bottom:1px solid #1a1a1a;flex-shrink:0}
+  .logo{font-size:16px;font-weight:700}.logo span{color:#34c759}
+  .conn-badge{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;padding:4px 12px;border-radius:99px;background:rgba(52,199,89,.12);border:1px solid rgba(52,199,89,.35);color:#34c759}
+  .conn-dot{width:7px;height:7px;border-radius:50%;background:#34c759;animation:blink 1.4s infinite}
+  .conn-badge.offline{color:#ff3b30;border-color:rgba(255,59,48,.35);background:rgba(255,59,48,.1)}
+  .conn-badge.offline .conn-dot{background:#ff3b30;animation:none}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+  .cam-wrap{flex:1;position:relative;overflow:hidden;background:#000}
+  .photo-slide{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000;opacity:0;transition:opacity .5s ease}
+  .photo-slide.active{opacity:1}
+  canvas#overlay{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:5}
+  .scan-line{position:absolute;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,#34c759,transparent);animation:scan 2.5s linear infinite;opacity:.3;z-index:6;pointer-events:none}
+  @keyframes scan{0%{top:0%}100%{top:100%}}
+  .scan-frame{position:absolute;inset:12px;pointer-events:none;z-index:6}
+  .scan-frame::before,.scan-frame::after,.scan-frame .br,.scan-frame .bl{content:'';position:absolute;width:24px;height:24px;border-color:#34c759;border-style:solid;opacity:.65}
+  .scan-frame::before{top:0;left:0;border-width:2px 0 0 2px}
+  .scan-frame::after{top:0;right:0;border-width:2px 2px 0 0}
+  .scan-frame .br{bottom:0;right:0;border-width:0 2px 2px 0}
+  .scan-frame .bl{bottom:0;left:0;border-width:0 0 2px 2px}
+  .detect-flash{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .1s;z-index:7}
+  .detect-flash.active{opacity:1}
+  .gps-box{position:absolute;top:12px;left:12px;z-index:8;background:rgba(0,0,0,.82);border-radius:8px;padding:7px 11px;font-size:11px;color:#888;border:1px solid #2a2a2a;line-height:1.8}
+  .gps-box b{color:#fff}
+  .ai-status{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);z-index:8;font-size:12px;font-weight:600;padding:6px 18px;border-radius:99px;background:rgba(0,0,0,.82);border:1px solid #333;white-space:nowrap;transition:all .2s;letter-spacing:.3px}
+  .last-box{position:absolute;top:12px;right:12px;z-index:8;background:rgba(0,0,0,.85);border-radius:8px;padding:7px 11px;font-size:11px;color:#666;border:1px solid #2a2a2a;text-align:right;transition:border-color .4s}
+  .last-box b{display:block;font-size:15px}
+  .detect-count{position:absolute;bottom:52px;left:50%;transform:translateX(-50%);z-index:8;font-size:10px;color:#888;white-space:nowrap;background:rgba(0,0,0,.6);padding:3px 10px;border-radius:99px}
+  .bottom{background:rgba(0,0,0,.93);border-top:1px solid #1a1a1a;padding:12px 16px;flex-shrink:0}
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px}
+  .sbox{background:#141414;border-radius:10px;padding:9px 4px;text-align:center;border:1px solid #222;transition:border-color .3s}
+  .sval{font-size:22px;font-weight:700;line-height:1}
+  .slbl{font-size:9px;color:#444;text-transform:uppercase;letter-spacing:.5px;margin-top:3px}
+  .btns{display:flex;gap:8px}
+  .btn{flex:1;padding:13px;border-radius:12px;border:none;font-size:14px;font-weight:700;cursor:pointer;transition:opacity .15s}
+  .btn:active{opacity:.65}
+  .btn-go{background:#34c759;color:#000}
+  .btn-stop{background:#ff3b30;color:#fff;display:none}
+  .btn-rst{background:#1c1c1e;color:#555;border:1px solid #2a2a2a;flex:0 0 auto;width:52px;font-size:20px}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="logo">Yol<span>Gözcü</span></div>
+  <div class="conn-badge" id="connBadge">
+    <div class="conn-dot"></div>
+    <span id="connTxt">Bağlanıyor...</span>
+  </div>
+</div>
+
+<div class="cam-wrap" id="camWrap">
+  <img class="photo-slide active" id="s0"  src="y1.png"  alt="">
+  <img class="photo-slide"        id="s1"  src="y2.png"  alt="">
+  <img class="photo-slide"        id="s2"  src="y3.png"  alt="">
+  <img class="photo-slide"        id="s3"  src="y4.png"  alt="">
+  <img class="photo-slide"        id="s4"  src="y5.png"  alt="">
+  <img class="photo-slide"        id="s5"  src="y9.png"  alt="">
+  <img class="photo-slide"        id="s6"  src="y10.png" alt="">
+  <img class="photo-slide"        id="s7"  src="y11.png" alt="">
+  <img class="photo-slide"        id="s8"  src="y12.png" alt="">
+  <img class="photo-slide"        id="s9"  src="y13.png" alt="">
+  <canvas id="overlay"></canvas>
+  <div class="scan-line"></div>
+  <div class="scan-frame"><div class="br"></div><div class="bl"></div></div>
+  <div class="detect-flash" id="flash"></div>
+  <div class="gps-box">
+    <div>LAT: <b id="gLat">—</b></div>
+    <div>LON: <b id="gLon">—</b></div>
+    <div id="gSpd" style="font-size:10px;color:#555">—</div>
+  </div>
+  <div class="ai-status" id="aiStat" style="color:#34c759;border-color:rgba(52,199,89,.4)">◉ YOLOv8-seg Taranıyor...</div>
+  <div class="last-box" id="lastBox">
+    <span style="font-size:10px">Son Tespit</span>
+    <b id="lastSev" style="color:#444">—</b>
+    <span id="lastType" style="font-size:10px;color:#444">—</span>
+  </div>
+  <div class="detect-count" id="detectCount"></div>
+</div>
+
+<div class="bottom">
+  <div class="stats">
+    <div class="sbox"><div class="sval" style="color:#fff"    id="sTot">0</div><div class="slbl">Toplam</div></div>
+    <div class="sbox"><div class="sval" style="color:#ff3b30" id="sKrt">0</div><div class="slbl">Kritik</div></div>
+    <div class="sbox"><div class="sval" style="color:#ffcc00" id="sOrt">0</div><div class="slbl">Orta</div></div>
+    <div class="sbox"><div class="sval" style="color:#34c759" id="sHaf">0</div><div class="slbl">Hafif</div></div>
+  </div>
+  <div class="btns">
+    <button class="btn btn-go"   id="btnGo"   onclick="startSession()">▶ Tespiti Başlat</button>
+    <button class="btn btn-stop" id="btnStop" onclick="stopSession()">■ Durdur</button>
+    <button class="btn btn-rst"  onclick="resetSession()" title="Sıfırla">↺</button>
+  </div>
+</div>
+
+<script>
+const API  = 'http://127.0.0.1:8000';
+const TICK = 5000;
+
+// ─── FOTOĞRAF VERİTABANI ────────────────────────────────────────────────────
+// bbox koordinatları normalize (0-1), fotoğrafın gerçek hasar konumuna göre
+const PHOTOS = [
+  { id:'s0', file:'y1.png',  speed:24, location:'Moda Caddesi, Kadıköy',
+    gps:{lat:40.9901, lon:29.0234},
+    bboxes:[
+      {x:0.22, y:0.66, w:0.18, h:0.14, sev:'Kritik', conf:0.95},
+      {x:0.42, y:0.6, w:0.14, h:0.11, sev:'Orta', conf:0.89},
+      {x:0.58, y:0.58, w:0.14, h:0.1, sev:'Orta', conf:0.85},
+      {x:0.1, y:0.63, w:0.1, h:0.09, sev:'Hafif', conf:0.78}
+    ]
+  },
+  { id:'s1', file:'y2.png',  speed:48, location:'Hakimiyeti Milliye Cad., Üsküdar',
+    gps:{lat:41.0267, lon:29.0152},
+    bboxes:[
+      {x:0.3, y:0.6, w:0.28, h:0.16, sev:'Orta', conf:0.91},
+      {x:0.62, y:0.62, w:0.14, h:0.12, sev:'Hafif', conf:0.8}
+    ]
+  },
+  { id:'s2', file:'y3.png',  speed:41, location:'Fevzipaşa Caddesi, Fatih',
+    gps:{lat:41.0165, lon:28.9497},
+    bboxes:[
+      {x:0.14, y:0.57, w:0.2, h:0.16, sev:'Kritik', conf:0.96},
+      {x:0.36, y:0.53, w:0.22, h:0.16, sev:'Kritik', conf:0.94},
+      {x:0.6, y:0.51, w:0.16, h:0.12, sev:'Orta', conf:0.87},
+      {x:0.48, y:0.46, w:0.12, h:0.09, sev:'Orta', conf:0.83},
+      {x:0.28, y:0.45, w:0.1, h:0.08, sev:'Hafif', conf:0.75}
+    ]
+  },
+  { id:'s3', file:'y4.png',  speed:19, location:'Bağdat Caddesi, Maltepe',
+    gps:{lat:40.9347, lon:29.1317},
+    bboxes:[
+      {x:0.08, y:0.4, w:0.28, h:0.22, sev:'Kritik', conf:0.96},
+      {x:0.36, y:0.36, w:0.26, h:0.2, sev:'Kritik', conf:0.94},
+      {x:0.62, y:0.42, w:0.22, h:0.18, sev:'Kritik', conf:0.91},
+      {x:0.22, y:0.3, w:0.3, h:0.12, sev:'Orta', conf:0.85}
+    ]
+  },
+  { id:'s4', file:'y5.png',  speed:15, location:'Barbaros Bulvarı, Beşiktaş',
+    gps:{lat:41.0422, lon:29.0074},
+    bboxes:[
+      {x:0.1, y:0.48, w:0.2, h:0.16, sev:'Kritik', conf:0.95},
+      {x:0.14, y:0.38, w:0.18, h:0.12, sev:'Kritik', conf:0.92},
+      {x:0.3, y:0.42, w:0.18, h:0.13, sev:'Kritik', conf:0.9},
+      {x:0.5, y:0.4, w:0.18, h:0.12, sev:'Orta', conf:0.85},
+      {x:0.36, y:0.34, w:0.14, h:0.09, sev:'Orta', conf:0.81}
+    ]
+  },
+  { id:'s5', file:'y9.png',  speed:20, location:'Büyükdere Caddesi, Şişli',
+    gps:{lat:41.0602, lon:28.9877},
+    bboxes:[
+      {x:0.3, y:0.5, w:0.18, h:0.14, sev:'Kritik', conf:0.94},
+      {x:0.5, y:0.46, w:0.2, h:0.16, sev:'Kritik', conf:0.93},
+      {x:0.38, y:0.57, w:0.14, h:0.11, sev:'Kritik', conf:0.88},
+      {x:0.22, y:0.58, w:0.14, h:0.1, sev:'Orta', conf:0.84}
+    ]
+  },
+  { id:'s6', file:'y10.png', speed:41, location:'Bağdat Caddesi, Kadıköy',
+    gps:{lat:40.9920, lon:29.0250},
+    bboxes:[
+      {x:0.12, y:0.5, w:0.18, h:0.14, sev:'Kritik', conf:0.96},
+      {x:0.3, y:0.48, w:0.18, h:0.13, sev:'Kritik', conf:0.94},
+      {x:0.5, y:0.47, w:0.18, h:0.13, sev:'Kritik', conf:0.92},
+      {x:0.68, y:0.46, w:0.14, h:0.12, sev:'Orta', conf:0.86},
+      {x:0.22, y:0.42, w:0.12, h:0.09, sev:'Orta', conf:0.83},
+      {x:0.42, y:0.4, w:0.12, h:0.08, sev:'Hafif', conf:0.76}
+    ]
+  },
+  { id:'s7', file:'y11.png', speed:55, location:'Büyükdere Cad., Şişli',
+    gps:{lat:41.0650, lon:28.9820},
+    bboxes:[
+      {x:0.12, y:0.58, w:0.36, h:0.22, sev:'Kritik', conf:0.97},
+      {x:0.5, y:0.62, w:0.22, h:0.16, sev:'Orta', conf:0.87}
+    ]
+  },
+  { id:'s8', file:'y12.png', speed:28, location:'Vatan Caddesi, Fatih',
+    gps:{lat:41.0180, lon:28.9510},
+    bboxes:[
+      {x:0.28, y:0.58, w:0.16, h:0.12, sev:'Kritik', conf:0.92},
+      {x:0.44, y:0.56, w:0.16, h:0.12, sev:'Kritik', conf:0.9},
+      {x:0.62, y:0.58, w:0.14, h:0.11, sev:'Orta', conf:0.84}
+    ]
+  },
+  { id:'s9', file:'y13.png', speed:25, location:'Çırağan Caddesi, Beşiktaş',
+    gps:{lat:41.0440, lon:29.0060},
+    bboxes:[
+      {x:0.52, y:0.52, w:0.2, h:0.18, sev:'Kritik', conf:0.95},
+      {x:0.38, y:0.58, w:0.14, h:0.13, sev:'Kritik', conf:0.92}
+    ]
+  },
+];
+// ────────────────────────────────────────────────────────────────────────────
+
+let active=false, timer=null, slideTimer=null;
+let slideIdx=0, routeIdx=0;
+let cnt={total:0,Kritik:0,Orta:0,Hafif:0};
+let bboxTO=null;
+
+// ── Slideshow ─────────────────────────────────────────────────────
+function nextSlide(){
+  document.getElementById(PHOTOS[slideIdx].id).classList.remove('active');
+  slideIdx=(slideIdx+1)%PHOTOS.length;
+  document.getElementById(PHOTOS[slideIdx].id).classList.add('active');
+}
+function startSlides(){ slideTimer=setInterval(nextSlide,TICK); }
+function stopSlides(){  clearInterval(slideTimer); }
+
+// ── GPS göster ────────────────────────────────────────────────────
+function updateGPSDisplay(photo){
+  const lat=(photo.gps.lat+(Math.random()-.5)*.0003).toFixed(5);
+  const lon=(photo.gps.lon+(Math.random()-.5)*.0003).toFixed(5);
+  document.getElementById('gLat').textContent=lat;
+  document.getElementById('gLon').textContent=lon;
+  document.getElementById('gSpd').textContent='Hız: '+photo.speed+' km/h | '+photo.location;
+  return {lat:parseFloat(lat), lon:parseFloat(lon)};
+}
+
+// ── BBOX ÇİZ — fotoğrafın gerçek alanına kilitli ─────────────────
+function drawAllBboxes(photo){
+  const cv   = document.getElementById('overlay');
+  const wrap = document.getElementById('camWrap');
+  cv.width   = wrap.offsetWidth;
+  cv.height  = wrap.offsetHeight;
+  const ctx  = cv.getContext('2d');
+  ctx.clearRect(0,0,cv.width,cv.height);
+
+  // object-fit:contain — fotoğrafın gerçek render alanını hesapla
+  const img  = document.getElementById(photo.id);
+  const natW = img.naturalWidth  || cv.width;
+  const natH = img.naturalHeight || cv.height;
+  const scale= Math.min(cv.width/natW, cv.height/natH);
+  const imgW = natW*scale;
+  const imgH = natH*scale;
+  const offX = (cv.width -imgW)/2;
+  const offY = (cv.height-imgH)/2;
+
+  const COLORS={Kritik:'#ff3b30',Orta:'#ffcc00',Hafif:'#34c759'};
+
+  photo.bboxes.forEach((b,i)=>{
+    const C  = COLORS[b.sev];
+    // Normalize → gerçek piksel (fotoğraf alanı içinde)
+    const px = offX + b.x*imgW;
+    const py = offY + b.y*imgH;
+    const pw = b.w*imgW;
+    const ph = b.h*imgH;
+
+    // Bbox glow
+    ctx.shadowColor=C; ctx.shadowBlur=12;
+    ctx.strokeStyle=C; ctx.lineWidth=2.5;
+    ctx.strokeRect(px,py,pw,ph);
+    ctx.shadowBlur=0;
+
+    // Köşe vurguları
+    const cs=14; ctx.lineWidth=3.5; ctx.strokeStyle=C;
+    [[px,py,1,1],[px+pw,py,-1,1],[px,py+ph,1,-1],[px+pw,py+ph,-1,-1]].forEach(([cx,cy,dx,dy])=>{
+      ctx.beginPath();
+      ctx.moveTo(cx+dx*cs,cy); ctx.lineTo(cx,cy); ctx.lineTo(cx,cy+dy*cs);
+      ctx.stroke();
+    });
+
+    // Etiket
+    const lbl='#'+(i+1)+' '+b.sev;
+    ctx.font='bold 12px Arial';
+    const tw=ctx.measureText(lbl).width+10;
+    ctx.fillStyle=C;
+    ctx.fillRect(px,py-24,tw,24);
+    ctx.fillStyle=b.sev==='Orta'?'#000':'#fff';
+    ctx.fillText(lbl,px+5,py-8);
+
+    // Confidence
+    ctx.fillStyle='rgba(0,0,0,.75)';
+    ctx.fillRect(px,py+ph+1,90,20);
+    ctx.fillStyle='#ccc'; ctx.font='10px monospace';
+    ctx.fillText('conf:'+b.conf.toFixed(2),px+4,py+ph+15);
+
+    // Noktalı mask
+    ctx.strokeStyle=C; ctx.lineWidth=1.2; ctx.setLineDash([3,5]);
+    ctx.globalAlpha=0.28;
+    ctx.strokeRect(px+5,py+5,pw-10,ph-10);
+    ctx.setLineDash([]); ctx.globalAlpha=1;
+  });
+
+  // Flash
+  const dom=photo.bboxes.some(b=>b.sev==='Kritik')?'Kritik':
+            photo.bboxes.some(b=>b.sev==='Orta')  ?'Orta':'Hafif';
+  const rgba={Kritik:'rgba(255,59,48,.14)',Orta:'rgba(255,204,0,.10)',Hafif:'rgba(52,199,89,.10)'}[dom];
+  const fl=document.getElementById('flash');
+  fl.style.background=rgba; fl.classList.add('active');
+  setTimeout(()=>fl.classList.remove('active'),200);
+
+  document.getElementById('detectCount').textContent=
+    photo.bboxes.length+' hasar noktası tespit edildi';
+
+  if(bboxTO) clearTimeout(bboxTO);
+  bboxTO=setTimeout(()=>{
+    ctx.clearRect(0,0,cv.width,cv.height);
+    document.getElementById('detectCount').textContent='';
+  },4200);
+}
+
+// ── Yardımcı ──────────────────────────────────────────────────────
+function setAI(txt,color){
+  const el=document.getElementById('aiStat');
+  el.textContent=txt; el.style.color=color; el.style.borderColor=color+'55';
+}
+function setLast(sev,dmg){
+  const C={Kritik:'#ff3b30',Orta:'#ffcc00',Hafif:'#34c759'}[sev];
+  document.getElementById('lastSev').style.color=C;
+  document.getElementById('lastSev').textContent=sev;
+  document.getElementById('lastType').textContent=dmg;
+  const b=document.getElementById('lastBox');
+  b.style.borderColor=C;
+  setTimeout(()=>b.style.borderColor='#2a2a2a',4500);
+}
+function updateStats(){
+  document.getElementById('sTot').textContent=cnt.total;
+  document.getElementById('sKrt').textContent=cnt.Kritik;
+  document.getElementById('sOrt').textContent=cnt.Orta;
+  document.getElementById('sHaf').textContent=cnt.Hafif;
+}
+
+// ── Ana tespit döngüsü ────────────────────────────────────────────
+async function detect(){
+  const photo=PHOTOS[slideIdx];
+  const gps=updateGPSDisplay(photo);
+  const dom=photo.bboxes.some(b=>b.sev==='Kritik')?'Kritik':
+            photo.bboxes.some(b=>b.sev==='Orta')  ?'Orta':'Hafif';
+
+  setAI('⚡ '+photo.bboxes.length+' HASAR TESPİT — '+dom.toUpperCase(),
+    dom==='Kritik'?'#ff3b30':dom==='Orta'?'#ffcc00':'#34c759');
+  drawAllBboxes(photo);
+  setLast(dom, 'çukur');
+  photo.bboxes.forEach(b=>{cnt.total++;cnt[b.sev]++;});
+  updateStats();
+  setTimeout(()=>setAI('◉ YOLOv8-seg Taranıyor...','#34c759'),2800);
+
+  // Her bbox → ayrı harita pini
+  await Promise.all(photo.bboxes.map(async(b,i)=>{
+    const P={Kritik:[4000,9000],Orta:[1500,4000],Hafif:[400,1500]}[b.sev];
+    const mat=+(P[0]+Math.random()*(P[1]-P[0])).toFixed(2);
+    const lab=+(mat*.60).toFixed(2);
+    const log=+(mat*.40).toFixed(2);
+    try{
+      await fetch(API+'/api/detect',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          lat:gps.lat+(i*0.0002)+(Math.random()-.5)*.0002,
+          lon:gps.lon+(i*0.0002)+(Math.random()-.5)*.0002,
+          address:photo.location,
+          damage_type:'çukur', severity:b.sev,
+          width_cm: b.sev==='Kritik'?+(70+Math.random()*60).toFixed(1):
+                    b.sev==='Orta'  ?+(35+Math.random()*35).toFixed(1):
+                                     +(5+Math.random()*30).toFixed(1),
+          depth_cm: b.sev==='Kritik'?+(12+Math.random()*10).toFixed(1):
+                    b.sev==='Orta'  ?+(5+Math.random()*7).toFixed(1):
+                                     +(1+Math.random()*4).toFixed(1),
+          material_cost:mat,labor_cost:lab,logistic_cost:log,
+          total_cost:+(mat+lab+log).toFixed(2),photo:photo.file
+        })
+      });
+    }catch(e){}
+  }));
+}
+
+// ── Bağlantı kontrolü ─────────────────────────────────────────────
+async function checkConn(){
+  const b=document.getElementById('connBadge'),t=document.getElementById('connTxt');
+  try{
+    const r=await fetch(API+'/',{signal:AbortSignal.timeout(2000)});
+    if(r.ok){b.className='conn-badge';t.textContent='Bağlı';}
+    else throw 0;
+  }catch{b.className='conn-badge offline';t.textContent='Bağlantı Yok';}
+}
+
+// ── Session ───────────────────────────────────────────────────────
+function startSession(){
+  active=true;
+  document.getElementById('btnGo').style.display='none';
+  document.getElementById('btnStop').style.display='flex';
+  startSlides();
+  detect();
+  timer=setInterval(detect,TICK);
+}
+function stopSession(){
+  active=false; clearInterval(timer); stopSlides();
+  document.getElementById('btnGo').style.display='flex';
+  document.getElementById('btnStop').style.display='none';
+  setAI('◉ Duraklatıldı','#888');
+  // Slideshow başa sar — bir sonraki başlatmada ilk fotoğraftan başlar
+  PHOTOS.forEach(p=>document.getElementById(p.id).classList.remove('active'));
+  slideIdx=0;
+  document.getElementById(PHOTOS[0].id).classList.add('active');
+  const cv=document.getElementById('overlay');
+  cv.getContext('2d').clearRect(0,0,cv.width,cv.height);
+  document.getElementById('detectCount').textContent='';
+}
+async function resetSession(){
+  stopSession();
+  cnt={total:0,Kritik:0,Orta:0,Hafif:0};
+  routeIdx=0; updateStats();
+  ['lastSev','lastType'].forEach(id=>document.getElementById(id).textContent='—');
+  setAI('◉ YOLOv8-seg Taranıyor...','#34c759');
+  try{await fetch(API+'/api/detections',{method:'DELETE'});}catch(e){}
+}
+
+checkConn();
+setInterval(checkConn,5000);
+</script>
+</body>
+</html>

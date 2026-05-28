@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>YolGözcü</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0b0c0e;
+  --bg2:#141518;
+  --bg3:#1c1d22;
+  --border:#2a2b31;
+  --border2:#333540;
+  --green:#2ecc72;
+  --green-dim:rgba(46,204,114,.12);
+  --red:#ff4040;
+  --red-dim:rgba(255,64,64,.12);
+  --yellow:#f5c518;
+  --yellow-dim:rgba(245,197,24,.10);
+  --text:#e8e9ee;
+  --text2:#7a7d8a;
+  --text3:#4a4d5a;
+  --mono:'Space Mono',monospace;
+  --sans:'DM Sans',sans-serif;
+  --r:14px;
+  --r-sm:8px;
+}
+
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);overflow:hidden}
+
+/* ── App shell ── */
+.app{display:flex;flex-direction:column;height:100vh;max-width:430px;margin:0 auto;position:relative;overflow:hidden}
+
+/* ── Screens ── */
+.screen{position:absolute;inset:0;display:flex;flex-direction:column;transition:transform .38s cubic-bezier(.4,0,.2,1),opacity .38s;will-change:transform}
+.screen.hidden-left {transform:translateX(-100%);opacity:0;pointer-events:none}
+.screen.hidden-right{transform:translateX(100%); opacity:0;pointer-events:none}
+.screen.active      {transform:translateX(0);    opacity:1}
+
+/* ── Top bar ── */
+.topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 20px;
+  background:var(--bg);
+  border-bottom:1px solid var(--border);
+  flex-shrink:0;
+  position:relative;
+}
+.topbar::after{
+  content:'';position:absolute;bottom:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,var(--border2),transparent);
+}
+.logo{font-family:var(--mono);font-size:15px;font-weight:700;letter-spacing:.5px}
+.logo em{color:var(--green);font-style:normal}
+.logo-dot{width:7px;height:7px;border-radius:50%;background:var(--green);margin-left:6px;display:inline-block;animation:pulse-g 2s infinite}
+@keyframes pulse-g{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}
+.topbar-right{display:flex;align-items:center;gap:8px}
+.badge{font-size:10px;font-family:var(--mono);padding:3px 8px;border-radius:4px;border:1px solid;letter-spacing:.02em}
+.badge-green{border-color:rgba(46,204,114,.4);color:var(--green);background:var(--green-dim)}
+.badge-red  {border-color:rgba(255,64,64,.4); color:var(--red);  background:var(--red-dim)}
+.badge-gray {border-color:var(--border2);color:var(--text2);background:var(--bg3)}
+
+/* ── Bottom nav ── */
+.bottom-nav{
+  display:flex;align-items:center;
+  background:var(--bg2);
+  border-top:1px solid var(--border);
+  flex-shrink:0;
+  padding-bottom:env(safe-area-inset-bottom,0);
+}
+.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 6px;cursor:pointer;transition:opacity .15s;border:none;background:transparent}
+.nav-item:active{opacity:.6}
+.nav-icon{font-size:20px;color:var(--text3);transition:color .2s}
+.nav-label{font-size:9px;color:var(--text3);letter-spacing:.5px;text-transform:uppercase;transition:color .2s}
+.nav-item.active .nav-icon,.nav-item.active .nav-label{color:var(--green)}
+.nav-item.active .nav-icon{filter:drop-shadow(0 0 6px rgba(46,204,114,.4))}
+
+/* ── SCREEN 1: Açılış ── */
+.splash-body{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:32px 24px;gap:0;
+}
+.splash-ring{
+  width:90px;height:90px;border-radius:50%;
+  border:1.5px solid var(--border2);
+  display:flex;align-items:center;justify-content:center;
+  position:relative;margin-bottom:28px;
+}
+.splash-ring::before{
+  content:'';position:absolute;inset:-8px;border-radius:50%;
+  border:1px solid rgba(46,204,114,.2);
+  animation:ring-pulse 2.5s ease-in-out infinite;
+}
+@keyframes ring-pulse{0%,100%{transform:scale(1);opacity:.4}50%{transform:scale(1.06);opacity:.8}}
+.splash-icon{font-size:36px;color:var(--green)}
+.splash-title{font-family:var(--mono);font-size:26px;font-weight:700;letter-spacing:1px;margin-bottom:6px}
+.splash-title em{color:var(--green);font-style:normal}
+.splash-sub{font-size:12px;color:var(--text2);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:40px}
+.splash-status{
+  display:flex;align-items:center;gap:8px;
+  border:1px solid var(--border2);border-radius:var(--r-sm);
+  padding:10px 16px;width:100%;margin-bottom:12px;
+  background:var(--bg3);
+}
+.splash-status-dot{width:6px;height:6px;border-radius:50%;background:var(--green);flex-shrink:0;animation:pulse-g 2s infinite}
+.splash-status span{font-size:11px;color:var(--text2);font-family:var(--mono)}
+.splash-status b{color:var(--text);font-weight:400}
+.btn-primary{
+  width:100%;padding:14px;border-radius:var(--r-sm);
+  background:var(--green);border:none;
+  color:#000;font-size:14px;font-weight:600;font-family:var(--sans);
+  cursor:pointer;letter-spacing:.2px;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  transition:opacity .15s,transform .1s;margin-bottom:10px;
+}
+.btn-primary:active{opacity:.85;transform:scale(.98)}
+.btn-secondary{
+  width:100%;padding:13px;border-radius:var(--r-sm);
+  background:transparent;border:1px solid var(--border2);
+  color:var(--text2);font-size:13px;font-family:var(--sans);
+  cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;
+  transition:border-color .2s,color .2s;
+}
+.btn-secondary:hover{border-color:var(--green);color:var(--green)}
+
+/* ── SCREEN 2: Kamera ── */
+.cam-wrap{position:relative;background:#000;overflow:hidden}
+.cam-img{width:100%;height:100%;object-fit:cover;opacity:.9}
+.cam-overlay{position:absolute;inset:0;pointer-events:none}
+/* grid */
+.grid-line{position:absolute;background:rgba(46,204,114,.12)}
+.grid-h{left:0;right:0;height:1px}
+.grid-v{top:0;bottom:0;width:1px}
+/* corners */
+.corner{position:absolute;width:18px;height:18px;border-color:var(--green);border-style:solid;opacity:.7}
+.c-tl{top:12px;left:12px;border-width:2px 0 0 2px}
+.c-tr{top:12px;right:12px;border-width:2px 2px 0 0}
+.c-bl{bottom:12px;left:12px;border-width:0 0 2px 2px}
+.c-br{bottom:12px;right:12px;border-width:0 2px 2px 0}
+/* scan line */
+.scan-line{
+  position:absolute;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,var(--green),transparent);
+  animation:scan 2.5s linear infinite;opacity:.5;
+}
+@keyframes scan{0%{top:0}100%{top:100%}}
+/* bbox */
+.bbox{position:absolute;border:2px solid;border-radius:3px}
+.bbox-label{
+  position:absolute;top:-20px;left:0;
+  font-family:var(--mono);font-size:9px;font-weight:700;
+  padding:2px 7px;border-radius:3px;white-space:nowrap;
+}
+.bbox-conf{
+  position:absolute;bottom:-17px;left:0;
+  font-family:var(--mono);font-size:8px;color:#ccc;
+  background:rgba(0,0,0,.75);padding:1px 6px;border-radius:2px;
+}
+.cam-gps{
+  position:absolute;top:12px;left:12px;
+  background:rgba(11,12,14,.82);border:1px solid var(--border);
+  border-radius:var(--r-sm);padding:6px 10px;
+}
+.cam-gps-row{font-family:var(--mono);font-size:9px;color:var(--text2);line-height:1.8}
+.cam-gps-row b{color:var(--text)}
+.cam-slide{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .6s ease}
+.cam-slide.active{opacity:1}
+.cam-flash{
+  position:absolute;inset:0;pointer-events:none;
+  background:rgba(255,64,64,.15);opacity:0;transition:opacity .08s;
+}
+.cam-flash.active{opacity:1}
+.cam-ai-status{
+  position:absolute;bottom:14px;left:50%;transform:translateX(-50%);
+  font-family:var(--mono);font-size:9px;font-weight:700;
+  padding:5px 14px;border-radius:99px;white-space:nowrap;
+  background:rgba(11,12,14,.85);border:1px solid;
+  transition:color .2s,border-color .2s;
+  letter-spacing:.03em;
+}
+.stats-bar{
+  display:grid;grid-template-columns:repeat(4,1fr);
+  background:var(--bg2);border-top:1px solid var(--border);
+  flex-shrink:0;
+}
+.stat-cell{
+  display:flex;flex-direction:column;align-items:center;
+  padding:10px 4px;border-right:1px solid var(--border);
+}
+.stat-cell:last-child{border-right:none}
+.stat-val{font-family:var(--mono);font-size:20px;font-weight:700;line-height:1}
+.stat-lbl{font-size:8px;color:var(--text3);letter-spacing:.8px;text-transform:uppercase;margin-top:3px}
+.btn-row{padding:12px 16px;background:var(--bg);flex-shrink:0}
+.btn-detect{
+  width:100%;padding:14px;border-radius:var(--r-sm);
+  border:none;font-size:14px;font-weight:600;font-family:var(--sans);
+  cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;
+  transition:all .15s;letter-spacing:.2px;
+}
+.btn-detect.start{background:var(--green);color:#000}
+.btn-detect.stop {background:var(--red);  color:#fff}
+
+/* ── SCREEN 3: Harita ── */
+.map-container{flex:1;position:relative;overflow:hidden;background:#1a1e2e}
+/* sahte harita */
+.fake-map{width:100%;height:100%;position:relative}
+.map-tile{position:absolute;border:1px solid rgba(255,255,255,.04)}
+.map-road{position:absolute;background:rgba(255,255,255,.08)}
+.map-road-accent{position:absolute;background:rgba(255,255,255,.05)}
+/* marker */
+.marker{
+  position:absolute;width:14px;height:14px;border-radius:50%;
+  border:2px solid #fff;transform:translate(-50%,-50%);
+  transition:transform .3s;cursor:pointer;
+}
+.marker:hover{transform:translate(-50%,-50%) scale(1.4)}
+.marker.red   {background:var(--red);   box-shadow:0 0 0 4px rgba(255,64,64,.2)}
+.marker.yellow{background:var(--yellow);box-shadow:0 0 0 4px rgba(245,197,24,.2)}
+.marker.green {background:var(--green); box-shadow:0 0 0 4px rgba(46,204,114,.15)}
+.marker.pulse::after{
+  content:'';position:absolute;inset:-5px;border-radius:50%;
+  border:1.5px solid var(--red);animation:ring-out 1.5s ease-out infinite;
+}
+@keyframes ring-out{0%{transform:scale(1);opacity:.7}100%{transform:scale(1.8);opacity:0}}
+/* popup */
+.map-popup{
+  position:absolute;
+  background:var(--bg2);border:1px solid var(--border2);
+  border-radius:var(--r-sm);padding:10px 12px;min-width:140px;
+  box-shadow:0 8px 24px rgba(0,0,0,.5);
+  transform:translate(-50%,-130%);
+  font-size:11px;
+}
+.map-popup::after{
+  content:'';position:absolute;bottom:-7px;left:50%;transform:translateX(-50%);
+  border:7px solid transparent;border-top-color:var(--border2);border-bottom:none;
+}
+.popup-head{
+  font-family:var(--mono);font-size:10px;font-weight:700;
+  margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid var(--border);
+}
+.popup-row{display:flex;justify-content:space-between;gap:12px;margin-bottom:3px;color:var(--text2)}
+.popup-row b{color:var(--text);font-weight:500}
+.popup-total{
+  margin-top:6px;padding-top:6px;border-top:1px solid var(--border);
+  display:flex;justify-content:space-between;align-items:center;
+}
+.popup-total span{font-size:10px;color:var(--text2)}
+.popup-total b{font-family:var(--mono);font-size:13px;color:var(--green)}
+/* map legend */
+.map-legend{
+  position:absolute;bottom:16px;right:16px;
+  background:rgba(11,12,14,.88);border:1px solid var(--border);
+  border-radius:var(--r-sm);padding:8px 12px;
+}
+.legend-row{display:flex;align-items:center;gap:7px;font-size:10px;color:var(--text2);margin-bottom:4px}
+.legend-row:last-child{margin-bottom:0}
+.legend-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.map-live-bar{
+  padding:10px 16px;background:var(--bg2);border-top:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;flex-shrink:0;
+}
+.live-count{font-family:var(--mono);font-size:12px;color:var(--text2)}
+.live-count b{color:var(--text);font-size:14px}
+.btn-reset-sm{
+  font-size:11px;font-family:var(--mono);padding:6px 12px;
+  border-radius:var(--r-sm);border:1px solid rgba(255,64,64,.4);
+  background:var(--red-dim);color:var(--red);cursor:pointer;
+  transition:background .15s;
+}
+.btn-reset-sm:hover{background:rgba(255,64,64,.2)}
+
+/* ── SCREEN 4: Rapor ── */
+.report-body{flex:1;overflow-y:auto;padding:16px}
+.section-title{
+  font-family:var(--mono);font-size:9px;color:var(--text3);
+  letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px;
+}
+.metric-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px}
+.metric-card{
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:var(--r-sm);padding:12px;
+}
+.metric-val{font-family:var(--mono);font-size:22px;font-weight:700;line-height:1;margin-bottom:4px}
+.metric-lbl{font-size:10px;color:var(--text2)}
+/* sev bars */
+.sev-bars{margin-bottom:16px}
+.sev-row{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.sev-label{font-family:var(--mono);font-size:9px;width:36px;flex-shrink:0}
+.sev-track{flex:1;height:6px;background:var(--bg3);border-radius:99px;overflow:hidden}
+.sev-fill{height:100%;border-radius:99px;transition:width .4s}
+.sev-count{font-family:var(--mono);font-size:10px;font-weight:700;min-width:14px;text-align:right}
+/* cost breakdown */
+.cost-list{
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:var(--r-sm);overflow:hidden;margin-bottom:16px;
+}
+.cost-row{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:11px 14px;border-bottom:1px solid var(--border);font-size:12px;
+}
+.cost-row:last-child{border-bottom:none}
+.cost-label{color:var(--text2)}
+.cost-val{font-family:var(--mono);font-weight:700;color:var(--text)}
+.total-card{
+  background:var(--bg3);border:1px solid var(--border2);
+  border-radius:var(--r-sm);padding:14px 16px;
+  display:flex;justify-content:space-between;align-items:center;
+  margin-bottom:14px;
+}
+.total-label{font-size:11px;color:var(--text2)}
+.total-val{font-family:var(--mono);font-size:22px;font-weight:700;color:var(--green)}
+.btn-export{
+  width:100%;padding:13px;border-radius:var(--r-sm);
+  background:var(--green-dim);border:1px solid rgba(46,204,114,.35);
+  color:var(--green);font-size:13px;font-family:var(--mono);
+  cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;
+  transition:background .15s;
+}
+.btn-export:hover{background:rgba(46,204,114,.2)}
+
+/* ── transitions ── */
+.slide-up{animation:slideUp .5s cubic-bezier(.4,0,.2,1) both}
+@keyframes slideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- ═══ SCREEN 1: AÇILIŞ ═══ -->
+<div class="screen active" id="scr-home">
+  <div class="topbar">
+    <div class="logo">Yol<em>Gözcü</em><span class="logo-dot"></span></div>
+    <div class="badge badge-green">v2.3.0</div>
+  </div>
+  <div class="splash-body">
+    <div class="splash-ring">
+      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+      </svg>
+    </div>
+    <div class="splash-title">Yol<em>Gözcü</em></div>
+    <div class="splash-sub" style="margin-bottom:32px">Akıllı Yol Takip Sistemi</div>
+
+    <div class="splash-status" style="margin-bottom:8px">
+      <span class="splash-status-dot"></span>
+      <span>Sunucu: <b>127.0.0.1:8000</b></span>
+    </div>
+    <div class="splash-status" style="margin-bottom:20px;opacity:.7">
+      <span class="splash-status-dot" style="background:var(--yellow)"></span>
+      <span>Model: <b>YOLOv8-seg aktif</b></span>
+    </div>
+
+    <button class="btn-primary" onclick="goTo('scr-camera')">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+      Tespiti Başlat
+    </button>
+    <button class="btn-secondary" onclick="goTo('scr-map')">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg>
+      Haritayı Görüntüle
+    </button>
+  </div>
+  <div class="bottom-nav">
+    <button class="nav-item active" onclick="goTo('scr-home')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      <span class="nav-label">Ana Sayfa</span>
+    </button>
+    <button class="nav-item" onclick="goTo('scr-camera')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+      <span class="nav-label">Kamera</span>
+    </button>
+    <button class="nav-item" onclick="goTo('scr-map')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg>
+      <span class="nav-label">Harita</span>
+    </button>
+    <button class="nav-item" onclick="goTo('scr-report')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      <span class="nav-label">Rapor</span>
+    </button>
+  </div>
+</div>
+
+<!-- ═══ SCREEN 2: KAMERA ═══ -->
+<div class="screen hidden-right" id="scr-camera">
+  <div class="topbar">
+    <div class="logo">Yol<em>Gözcü</em></div>
+    <div id="conn-badge" class="badge badge-green">● Bağlı</div>
+  </div>
+
+  <div class="cam-wrap" id="camWrap" style="flex:1;position:relative">
+    <!-- Gerçek yol hasarı fotoğrafları — döngüsel slideshow -->
+    <div style="width:100%;height:100%;position:relative;background:#000;overflow:hidden">
+      <img class="cam-slide active" id="cs0" src="y1.png"  alt="">
+      <img class="cam-slide"        id="cs1" src="y2.png"  alt="">
+      <img class="cam-slide"        id="cs2" src="y3.png"  alt="">
+      <img class="cam-slide"        id="cs3" src="y4.png"  alt="">
+      <img class="cam-slide"        id="cs4" src="y5.png"  alt="">
+      <img class="cam-slide"        id="cs5" src="y9.png"  alt="">
+      <img class="cam-slide"        id="cs6" src="y10.png" alt="">
+      <img class="cam-slide"        id="cs7" src="y11.png" alt="">
+      <img class="cam-slide"        id="cs8" src="y12.png" alt="">
+      <img class="cam-slide"        id="cs9" src="y13.png" alt="">
+      <!-- Tarama grid -->
+      <div class="cam-overlay" id="camOverlay">
+        <div class="grid-line grid-h" style="top:33%"></div>
+        <div class="grid-line grid-h" style="top:66%"></div>
+        <div class="grid-line grid-v" style="left:33%"></div>
+        <div class="grid-line grid-v" style="left:66%"></div>
+        <div class="corner c-tl"></div><div class="corner c-tr"></div>
+        <div class="corner c-bl"></div><div class="corner c-br"></div>
+        <div class="scan-line" id="scanLine"></div>
+        <div class="cam-flash" id="camFlash"></div>
+        <!-- BBOX örnek -->
+        <div class="bbox" id="bboxDemo" style="border-color:var(--red);left:22%;top:48%;width:40%;height:26%;display:none">
+          <div class="bbox-label" style="background:var(--red);color:#fff">#1 KRİTİK — çukur</div>
+          <div class="bbox-conf">conf: 0.95</div>
+        </div>
+      </div>
+    </div>
+    <!-- GPS overlay -->
+    <div class="cam-gps">
+      <div class="cam-gps-row">LAT: <b id="dispLat">—</b></div>
+      <div class="cam-gps-row">LON: <b id="dispLon">—</b></div>
+      <div class="cam-gps-row" id="dispSpd" style="color:var(--text3)">—</div>
+    </div>
+    <!-- AI durum -->
+    <div class="cam-ai-status" id="aiStatus" style="color:var(--green);border-color:rgba(46,204,114,.35)">◉ YOLOv8-seg Taranıyor...</div>
+  </div>
+
+  <div class="stats-bar">
+    <div class="stat-cell"><div class="stat-val" id="sTot" style="color:var(--text)">0</div><div class="stat-lbl">Toplam</div></div>
+    <div class="stat-cell"><div class="stat-val" id="sKrt" style="color:var(--red)">0</div><div class="stat-lbl">Kritik</div></div>
+    <div class="stat-cell"><div class="stat-val" id="sOrt" style="color:var(--yellow)">0</div><div class="stat-lbl">Orta</div></div>
+    <div class="stat-cell"><div class="stat-val" id="sHaf" style="color:var(--green)">0</div><div class="stat-lbl">Hafif</div></div>
+  </div>
+  <div class="btn-row" style="display:flex;gap:8px">
+    <button class="btn-detect start" id="btnStart" onclick="toggleDetect()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+      Tespiti Başlat
+    </button>
+    <button onclick="goTo('scr-map')" style="padding:14px 16px;border-radius:8px;border:1px solid var(--border2);background:var(--bg3);color:var(--text2);font-size:13px;cursor:pointer;white-space:nowrap">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/></svg>
+    </button>
+  </div>
+
+  <div class="bottom-nav">
+    <button class="nav-item" onclick="goTo('scr-home')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      <span class="nav-label">Ana Sayfa</span>
+    </button>
+    <button class="nav-item active" onclick="goTo('scr-camera')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+      <span class="nav-label">Kamera</span>
+    </button>
+    <button class="nav-item" onclick="goTo('scr-map')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg>
+      <span class="nav-label">Harita</span>
+    </button>
+    <button class="nav-item" onclick="goTo('scr-report')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/></svg>
+      <span class="nav-label">Rapor</span>
+    </button>
+  </div>
+</div>
+
+<!-- ═══ SCREEN 3: HARİTA ═══ -->
+<div class="screen hidden-right" id="scr-map">
+  <div class="topbar">
+    <div class="logo">Yol<em>Gözcü</em></div>
+    <div class="badge badge-green" id="map-live-badge">Canlı — 0 Tespit</div>
+  </div>
+  <div class="map-container">
+    <div id="leafletMap" style="width:100%;height:100%;z-index:1"></div>
+  </div>
+  <div class="map-live-bar">
+    <div class="live-count">Toplam: <b id="mapTotal">0</b> hasar &nbsp;|&nbsp; <b id="mapKrit" style="color:var(--red)">0</b> kritik</div>
+    <button class="btn-reset-sm" onclick="resetDetections()">↺ Sıfırla</button>
+  </div>
+  <div class="bottom-nav">
+    <button class="nav-item" onclick="goTo('scr-home')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      <span class="nav-label">Ana Sayfa</span>
+    </button>
+    <button class="nav-item" onclick="goTo('scr-camera')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+      <span class="nav-label">Kamera</span>
+    </button>
+    <button class="nav-item active" onclick="goTo('scr-map')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg>
+      <span class="nav-label">Harita</span>
+    </button>
+    <button class="nav-item" onclick="goTo('scr-report')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/></svg>
+      <span class="nav-label">Rapor</span>
+    </button>
+  </div>
+</div>
+
+<!-- ═══ SCREEN 4: RAPOR ═══ -->
+<div class="screen hidden-right" id="scr-report">
+  <div class="topbar">
+    <div class="logo">Yol<em>Gözcü</em></div>
+    <div class="badge badge-gray">Mali Rapor</div>
+  </div>
+  <div class="report-body">
+    <div class="section-title" style="margin-bottom:8px">Genel Özet</div>
+    <div class="metric-grid" style="margin-bottom:16px">
+      <div class="metric-card">
+        <div class="metric-val" id="rTot" style="color:var(--text)">0</div>
+        <div class="metric-lbl">Toplam Tespit</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-val" id="rKrt" style="color:var(--red)">0</div>
+        <div class="metric-lbl">Kritik Hasar</div>
+      </div>
+    </div>
+
+    <div class="section-title">Hasar Dağılımı</div>
+    <div class="sev-bars" id="sevBars">
+      <div class="sev-row">
+        <span class="sev-label" style="color:var(--red)">KRİTİK</span>
+        <div class="sev-track"><div class="sev-fill" id="barKrt" style="width:0%;background:var(--red)"></div></div>
+        <span class="sev-count" id="cntKrt" style="color:var(--red)">0</span>
+      </div>
+      <div class="sev-row">
+        <span class="sev-label" style="color:var(--yellow)">ORTA</span>
+        <div class="sev-track"><div class="sev-fill" id="barOrt" style="width:0%;background:var(--yellow)"></div></div>
+        <span class="sev-count" id="cntOrt" style="color:var(--yellow)">0</span>
+      </div>
+      <div class="sev-row">
+        <span class="sev-label" style="color:var(--green)">HAFİF</span>
+        <div class="sev-track"><div class="sev-fill" id="barHaf" style="width:0%;background:var(--green)"></div></div>
+        <span class="sev-count" id="cntHaf" style="color:var(--green)">0</span>
+      </div>
+    </div>
+
+    <div class="section-title">Maliyet Kırılımı</div>
+    <div class="cost-list">
+      <div class="cost-row"><span class="cost-label">Malzeme (%50)</span><span class="cost-val" id="rMat">0 ₺</span></div>
+      <div class="cost-row"><span class="cost-label">İşçilik (%30)</span><span class="cost-val" id="rLab">0 ₺</span></div>
+      <div class="cost-row"><span class="cost-label">Lojistik (%20)</span><span class="cost-val" id="rLog">0 ₺</span></div>
+    </div>
+
+    <div class="total-card">
+      <div>
+        <div class="total-label">Öngörülen Toplam Bütçe</div>
+        <div class="total-val" id="rBudget">0 ₺</div>
+      </div>
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.5" opacity=".4" aria-hidden="true"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+    </div>
+
+    <button class="btn-export" onclick="exportReport()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Raporu Dışa Aktar
+    </button>
+  </div>
+  <div class="bottom-nav">
+    <button class="nav-item" onclick="goTo('scr-home')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      <span class="nav-label">Ana Sayfa</span>
+    </button>
+    <button class="nav-item" onclick="goTo('scr-camera')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+      <span class="nav-label">Kamera</span>
+    </button>
+    <button class="nav-item" onclick="goTo('scr-map')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg>
+      <span class="nav-label">Harita</span>
+    </button>
+    <button class="nav-item active" onclick="goTo('scr-report')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/></svg>
+      <span class="nav-label">Rapor</span>
+    </button>
+  </div>
+</div>
+
+</div><!-- /app -->
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script>
+const API = 'http://127.0.0.1:8000';
+
+// ── Ekran geçişi ──────────────────────────────────────────────────
+const SCREENS = ['scr-home','scr-camera','scr-map','scr-report'];
+let currentScr = 'scr-home';
+
+function goTo(id){
+  const cur = document.getElementById(currentScr);
+  const nxt = document.getElementById(id);
+  const isFwd = SCREENS.indexOf(id) >= SCREENS.indexOf(currentScr);
+  cur.className = 'screen ' + (isFwd ? 'hidden-left' : 'hidden-right');
+  nxt.className = 'screen active';
+  currentScr = id;
+  if(id==='scr-map'){
+    setTimeout(()=>{ if(leafletMap) leafletMap.invalidateSize(); fetchMapData(); },350);
+  }
+  if(id==='scr-report') fetchReport();
+}
+
+// ── Kamera slideshow ──────────────────────────────────────────────
+const CAM_SLIDES = ['cs0','cs1','cs2','cs3','cs4','cs5','cs6','cs7','cs8','cs9'];
+const PHOTO_DATA = [
+  {sev:'Kritik',bx:22,by:56,bw:38,bh:22,conf:0.93},
+  {sev:'Orta',  bx:30,by:58,bw:30,bh:18,conf:0.91},
+  {sev:'Kritik',bx:18,by:54,bw:40,bh:20,conf:0.95},
+  {sev:'Kritik',bx:10,by:40,bw:50,bh:28,conf:0.96},
+  {sev:'Kritik',bx:14,by:44,bw:38,bh:22,conf:0.95},
+  {sev:'Kritik',bx:28,by:48,bw:36,bh:24,conf:0.94},
+  {sev:'Kritik',bx:12,by:46,bw:42,bh:22,conf:0.96},
+  {sev:'Kritik',bx:12,by:54,bw:44,bh:26,conf:0.97},
+  {sev:'Kritik',bx:24,by:54,bw:38,bh:20,conf:0.93},
+  {sev:'Kritik',bx:30,by:46,bw:40,bh:28,conf:0.95},
+];
+let camSlideIdx=0, camSlideTimer=null;
+
+function nextCamSlide(){
+  document.getElementById(CAM_SLIDES[camSlideIdx]).classList.remove('active');
+  camSlideIdx=(camSlideIdx+1)%CAM_SLIDES.length;
+  document.getElementById(CAM_SLIDES[camSlideIdx]).classList.add('active');
+}
+
+// ── Kamera & Tespit ───────────────────────────────────────────────
+let detecting=false, detectTimer=null;
+let cnt={total:0,Kritik:0,Orta:0,Hafif:0};
+let routeIdx=0;
+
+const ROUTE=[
+  {lat:40.9901,lon:29.0234,street:'Moda Cad., Kadıköy',   speed:24},
+  {lat:41.0267,lon:29.0152,street:'Hakimiyeti Mll., Üsküdar',speed:38},
+  {lat:41.0165,lon:28.9497,street:'Fevzipaşa Cad., Fatih',speed:41},
+  {lat:40.9347,lon:29.1317,street:'Bağdat Cad., Maltepe', speed:19},
+  {lat:41.0422,lon:29.0074,street:'Barbaros Blv., Beşiktaş',speed:32},
+  {lat:41.0602,lon:28.9877,street:'Büyükdere Cad., Şişli',speed:45},
+  {lat:40.9920,lon:29.0250,street:'Söğütlüçeşme, Kadıköy',speed:28},
+  {lat:41.0180,lon:28.9510,street:'Vatan Cad., Fatih',    speed:28},
+  {lat:41.0440,lon:29.0060,street:'Çırağan Cad., Beşiktaş',speed:25},
+  {lat:41.0650,lon:28.9820,street:'Büyükdere Cad., Şişli',speed:55},
+];
+
+function toggleDetect(){
+  if(!detecting){
+    detecting=true;
+    document.getElementById('btnStart').className='btn-detect stop';
+    document.getElementById('btnStart').innerHTML='<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12"/></svg> Durdur';
+    camSlideTimer=setInterval(nextCamSlide,5000);
+    runDetect();
+    detectTimer=setInterval(runDetect,5000);
+  } else {
+    detecting=false;
+    clearInterval(detectTimer);
+    clearInterval(camSlideTimer);
+    document.getElementById('btnStart').className='btn-detect start';
+    document.getElementById('btnStart').innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg> Tespiti Başlat';
+    const ai=document.getElementById('aiStatus');
+    ai.textContent='◉ Duraklatıldı';
+    ai.style.color='var(--text2)';
+    ai.style.borderColor='var(--border2)';
+    document.getElementById('bboxDemo').style.display='none';
+    // Slideshow'u başa sar
+    CAM_SLIDES.forEach(id=>document.getElementById(id).classList.remove('active'));
+    camSlideIdx=0;
+    document.getElementById(CAM_SLIDES[0]).classList.add('active');
+  }
+}
+
+async function runDetect(){
+  const pt=ROUTE[routeIdx%ROUTE.length]; routeIdx++;
+  const pd=PHOTO_DATA[camSlideIdx];
+  const sev=pd.sev;
+  const C={Kritik:'var(--red)',Orta:'var(--yellow)',Hafif:'var(--green)'}[sev];
+  const bgC={Kritik:'#ff4040',Orta:'#f5c518',Hafif:'#2ecc72'}[sev];
+  const txtC=sev==='Orta'?'#000':'#fff';
+
+  // GPS
+  document.getElementById('dispLat').textContent=(pt.lat+(Math.random()-.5)*.0003).toFixed(5);
+  document.getElementById('dispLon').textContent=(pt.lon+(Math.random()-.5)*.0003).toFixed(5);
+  document.getElementById('dispSpd').textContent='Hız: '+pt.speed+' km/h — '+pt.street;
+
+  // AI durum
+  const ai=document.getElementById('aiStatus');
+  ai.textContent='⚡ HASAR TESPİT — '+sev.toUpperCase();
+  ai.style.color=C; ai.style.borderColor=C;
+
+  // BBOX — fotoğraftaki gerçek konuma göre
+  const bb=document.getElementById('bboxDemo');
+  bb.style.display='block';
+  bb.style.borderColor=C;
+  bb.style.left=pd.bx+'%';
+  bb.style.top=pd.by+'%';
+  bb.style.width=pd.bw+'%';
+  bb.style.height=pd.bh+'%';
+  const lbl=bb.querySelector('.bbox-label');
+  lbl.style.background=bgC; lbl.style.color=txtC;
+  lbl.textContent='#1 '+sev.toUpperCase()+' — çukur';
+  bb.querySelector('.bbox-conf').textContent='conf: '+pd.conf.toFixed(2);
+
+  // Flash
+  const fl=document.getElementById('camFlash');
+  fl.style.background=sev==='Kritik'?'rgba(255,64,64,.15)':sev==='Orta'?'rgba(245,197,24,.12)':'rgba(46,204,114,.12)';
+  fl.classList.add('active');
+  setTimeout(()=>fl.classList.remove('active'),200);
+
+  // Sayaçlar
+  cnt.total++; cnt[sev]++;
+  document.getElementById('sTot').textContent=cnt.total;
+  document.getElementById('sKrt').textContent=cnt.Kritik;
+  document.getElementById('sOrt').textContent=cnt.Orta;
+  document.getElementById('sHaf').textContent=cnt.Hafif;
+
+  setTimeout(()=>{
+    if(!detecting) return;
+    ai.textContent='◉ YOLOv8-seg Taranıyor...';
+    ai.style.color='var(--green)';
+    ai.style.borderColor='rgba(46,204,114,.35)';
+    bb.style.display='none';
+  },2800);
+
+  // Backend
+  const P={Kritik:[4000,9000],Orta:[1500,4000],Hafif:[400,1500]}[sev];
+  const mat=+(P[0]+Math.random()*(P[1]-P[0])).toFixed(2);
+  try{
+    await fetch(API+'/api/detect',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        lat:pt.lat+(Math.random()-.5)*.001,lon:pt.lon+(Math.random()-.5)*.001,
+        address:pt.street,damage_type:'çukur',severity:sev,
+        width_cm:+(50+Math.random()*60).toFixed(1),
+        depth_cm:+(5+Math.random()*15).toFixed(1),
+        material_cost:mat,labor_cost:+(mat*.6).toFixed(2),
+        logistic_cost:+(mat*.4).toFixed(2),
+        total_cost:+(mat*2).toFixed(2),photo:'mobile'
+      })
+    });
+  }catch(e){}
+}
+
+// ── Leaflet Harita ────────────────────────────────────────────────
+let leafletMap=null, leafletLayer=null, knownIds=new Set(), mapFeatures=[];
+
+function initLeafletMap(){
+  if(leafletMap) return;
+  leafletMap=L.map('leafletMap',{
+    center:[41.0082,28.9784],zoom:11,
+    zoomControl:true,attributionControl:false
+  });
+
+  // Karanlık tema tile
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
+    maxZoom:19,
+    attribution:''
+  }).addTo(leafletMap);
+
+  leafletLayer=L.layerGroup().addTo(leafletMap);
+
+  // Küçük attribution
+  L.control.attribution({position:'bottomleft',prefix:''}).addTo(leafletMap);
+}
+
+function getLeafletColor(sev){
+  const s=(sev||'').toLowerCase();
+  if(s.includes('kritik')||s.includes('critical')) return '#ff4040';
+  if(s.includes('orta')||s.includes('medium'))     return '#f5c518';
+  return '#2ecc72';
+}
+
+async function fetchMapData(){
+  if(!leafletMap) initLeafletMap();
+  try{
+    const r=await fetch(API+'/api/defects?t='+Date.now());
+    if(!r.ok) throw 0;
+    const geo=await r.json();
+
+    const newFeats=geo.features.filter(f=>!knownIds.has(f.id));
+    newFeats.forEach(f=>{
+      knownIds.add(f.id);
+      mapFeatures.push(f);
+      const p=f.properties;
+      const col=getLeafletColor(p.severity);
+      const lat=f.geometry.coordinates[1];
+      const lon=f.geometry.coordinates[0];
+
+      const marker=L.circleMarker([lat,lon],{
+        radius:10,fillColor:col,color:'#fff',
+        weight:2,opacity:1,fillOpacity:.92
+      }).addTo(leafletLayer);
+
+      // Popup
+      const w=p.width_cm!=null?p.width_cm+' cm':'—';
+      const d=p.depth_cm!=null?p.depth_cm+' cm':'—';
+      const cost=(p.total_cost||0).toLocaleString('tr-TR');
+      marker.bindPopup(
+        `<div style="font-family:'Space Mono',monospace;font-size:11px;color:#e8e9ee;background:#141518;min-width:160px;padding:2px">
+          <div style="font-weight:700;color:${col};border-bottom:1px solid #2a2b31;padding-bottom:5px;margin-bottom:6px;font-size:12px">
+            ${(p.severity||'HASAR').toUpperCase()} — ${p.damage_type||'çukur'}
+          </div>
+          <div style="color:#7a7d8a;margin-bottom:3px">📍 ${(p.address||'İstanbul').split(',')[0]}</div>
+          <div style="color:#7a7d8a;margin-bottom:6px;font-size:10px">Genişlik: ${w} | Derinlik: ${d}</div>
+          <div style="display:flex;justify-content:space-between;border-top:1px solid #2a2b31;padding-top:6px">
+            <span style="color:#7a7d8a">Maliyet</span>
+            <b style="color:#2ecc72">${cost} ₺</b>
+          </div>
+        </div>`,
+        {className:'dark-popup'}
+      );
+
+      // Animasyon — büyükten küçüğe
+      marker.setStyle({radius:18});
+      setTimeout(()=>marker.setStyle({radius:10}),600);
+    });
+
+    const tot=mapFeatures.length;
+    const krt=mapFeatures.filter(f=>(f.properties.severity||'').toLowerCase().includes('kritik')).length;
+    document.getElementById('mapTotal').textContent=tot;
+    document.getElementById('mapKrit').textContent=krt;
+    document.getElementById('map-live-badge').textContent='Canlı — '+tot+' Tespit';
+  }catch(e){}
+}
+
+async function resetDetections(){
+  if(!confirm('Tüm hasar kayıtları silinecek. Emin misiniz?')) return;
+  try{
+    await fetch(API+'/api/detections',{method:'DELETE'});
+    if(leafletLayer) leafletLayer.clearLayers();
+    knownIds=new Set(); mapFeatures=[];
+    cnt={total:0,Kritik:0,Orta:0,Hafif:0};
+    ['sTot','sKrt','sOrt','sHaf'].forEach(id=>document.getElementById(id).textContent='0');
+    document.getElementById('mapTotal').textContent='0';
+    document.getElementById('mapKrit').textContent='0';
+    document.getElementById('map-live-badge').textContent='Tespit Bekleniyor...';
+    updateReport(0,0,0,0,0,0,0,0);
+  }catch(e){ alert('Sunucu bağlantısı yok.'); }
+}
+
+// ── Rapor ─────────────────────────────────────────────────────────
+async function fetchReport(){
+  try{
+    const r=await fetch(API+'/api/report?t='+Date.now());
+    if(!r.ok) throw 0;
+    const d=await r.json();
+    const tot=d.total_defects||0;
+    const krt=d.critical_count||0;
+    const ort=mapFeatures.filter(f=>(f.properties.severity||'').toLowerCase().includes('orta')).length;
+    const haf=mapFeatures.filter(f=>(f.properties.severity||'').toLowerCase().includes('hafif')).length;
+    updateReport(tot,krt,ort,haf,d.total_material_cost||0,d.total_labor_cost||0,d.total_logistic_cost||0,d.total_projected_cost||0);
+  }catch(e){ updateReport(0,0,0,0,0,0,0,0); }
+}
+
+function updateReport(tot,krt,ort,haf,mat,lab,log,budget){
+  document.getElementById('rTot').textContent=tot;
+  document.getElementById('rKrt').textContent=krt;
+  document.getElementById('cntKrt').textContent=krt;
+  document.getElementById('cntOrt').textContent=ort;
+  document.getElementById('cntHaf').textContent=haf;
+  const maxB=Math.max(krt,ort,haf,1);
+  document.getElementById('barKrt').style.width=(krt/maxB*100)+'%';
+  document.getElementById('barOrt').style.width=(ort/maxB*100)+'%';
+  document.getElementById('barHaf').style.width=(haf/maxB*100)+'%';
+  document.getElementById('rMat').textContent=mat.toLocaleString('tr-TR')+' ₺';
+  document.getElementById('rLab').textContent=lab.toLocaleString('tr-TR')+' ₺';
+  document.getElementById('rLog').textContent=log.toLocaleString('tr-TR')+' ₺';
+  document.getElementById('rBudget').textContent=(budget||mat+lab+log).toLocaleString('tr-TR')+' ₺';
+}
+
+function exportReport(){
+  alert('Rapor dışa aktarma — PDF/Excel yakında');
+}
+
+// ── Leaflet dark popup CSS ────────────────────────────────────────
+const style=document.createElement('style');
+style.textContent=`
+  .dark-popup .leaflet-popup-content-wrapper{
+    background:#141518;border:1px solid #333540;border-radius:8px;
+    box-shadow:0 8px 24px rgba(0,0,0,.6);padding:0;
+  }
+  .dark-popup .leaflet-popup-content{margin:12px 14px;color:#e8e9ee}
+  .dark-popup .leaflet-popup-tip{background:#141518}
+  .dark-popup .leaflet-popup-close-button{color:#7a7d8a!important;top:6px!important;right:8px!important}
+  .leaflet-control-zoom a{background:#141518!important;color:#e8e9ee!important;border-color:#333540!important}
+  .leaflet-control-zoom a:hover{background:#1c1d22!important}
+`;
+document.head.appendChild(style);
+
+// ── Bağlantı kontrolü ─────────────────────────────────────────────
+async function checkConn(){
+  try{
+    const r=await fetch(API+'/',{signal:AbortSignal.timeout(2000)});
+    const b=document.getElementById('conn-badge');
+    if(r.ok){b.className='badge badge-green';b.textContent='● Bağlı';}
+    else throw 0;
+  }catch{
+    const b=document.getElementById('conn-badge');
+    if(b){b.className='badge badge-red';b.textContent='● Bağlantı Yok';}
+  }
+}
+
+// Harita 3sn'de bir güncelle
+setInterval(()=>{ if(currentScr==='scr-map') fetchMapData(); },3000);
+checkConn();
+setInterval(checkConn,5000);
+</script>
+</body>
+</html>
