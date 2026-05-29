@@ -244,6 +244,7 @@ Bu proje MIT lisansı altında lisanslanmıştır. Detaylar için [LICENSE](LICE
 
 **YolGözcü** — Akıllı Yol Takip Sistemi
 
-*iş'te Yapay Zeka Hackathonu 2024*
+*© 2026 Ömer Faruk Güneş, Furkan İlbak, Ebubekir Erişgin
+iş'te Yapay Zeka Hackathonu — Tüm hakları saklıdır.*
 
 </div>
