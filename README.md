@@ -11,7 +11,7 @@
 
 > **iş'te Yapay Zeka Hackathonu** — 24 saatte geliştirildi · 3 kişilik ekip
 
-[Demo Video](#-demo) · [Kurulum](#-kurulum) · [API Docs](#-api) · [Ekip](#-ekip)
+[▶ Demo Video](https://youtu.be/nol6izA-kI8) · [Kurulum](#-kurulum) · [API Docs](#-api) · [Ekip](#-ekip)
 
 </div>
 
@@ -32,6 +32,10 @@ Rutin görevlerini yapan belediye araçları aynı zamanda **gezici yol tarama s
 ---
 
 ## 🎥 Demo
+
+[![YolGözcü Demo Video](https://img.youtube.com/vi/nol6izA-kI8/maxresdefault.jpg)](https://youtu.be/nol6izA-kI8)
+
+> 👆 Görsele tıklayarak tanıtım filmini izleyin
 
 | Ekran | Açıklama |
 |:---:|:---|
@@ -244,7 +248,6 @@ Bu proje MIT lisansı altında lisanslanmıştır. Detaylar için [LICENSE](LICE
 
 **YolGözcü** — Akıllı Yol Takip Sistemi
 
-*© 2026 Ömer Faruk Güneş, Furkan İlbak, Ebubekir Erişgin
-iş'te Yapay Zeka Hackathonu — Tüm hakları saklıdır.*
+*iş'te Yapay Zeka Hackathonu 2024*
 
 </div>
