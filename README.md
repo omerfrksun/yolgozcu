@@ -2,6 +2,7 @@
 
 # 🛣️ YolGözcü
 ### AI Destekli Gerçek Zamanlı Yol Hasar Tespit ve Maliyet Tahminleme Sistemi
+https://omerfrksun.github.io/yolgozcu/
 
 [![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=flat&logo=python&logoColor=white)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688?style=flat&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
